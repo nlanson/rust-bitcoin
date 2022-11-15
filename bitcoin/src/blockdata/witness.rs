@@ -7,6 +7,7 @@
 
 use core::convert::TryInto;
 use core::ops::Index;
+use core::convert::TryFrom;
 
 use secp256k1::ecdsa;
 
@@ -247,24 +248,22 @@ impl Witness {
     }
 
     /// Push a new element slice onto the witness stack.
-    fn push_slice(&mut self, new_element: &[u8]) {
+    fn push_slice(&mut self, new_elem: &[u8]) {        
+        let elem_len_varint = VarInt(new_elem.len() as u64);
+        let new_elem_total_len = elem_len_varint.len() + new_elem.len();
+
+        let mut varint_buf: [u8; 9] = [0; 9];
+        elem_len_varint.consensus_encode(&mut &mut varint_buf[..]).expect("varint is 9B long");
+
+        self.content.reserve(new_elem_total_len);
+        self.content.splice(self.indices_start..self.indices_start, varint_buf[..elem_len_varint.len()].iter().chain(new_elem).copied());
+        u32::try_from(self.indices_start)
+            .expect("index too large")
+            .consensus_encode(&mut self.content)
+            .expect("failed to write indice");
+
+        self.indices_start += new_elem_total_len;
         self.witness_elements += 1;
-        let previous_content_end = self.indices_start;
-        let element_len_varint = VarInt(new_element.len() as u64);
-        let current_content_len = self.content.len();
-        let new_item_total_len = element_len_varint.len() + new_element.len();
-        self.content
-            .resize(current_content_len + new_item_total_len + 4, 0);
-
-        self.content[previous_content_end..].rotate_right(new_item_total_len);
-        self.indices_start += new_item_total_len;
-        encode_cursor(&mut self.content, self.indices_start, self.witness_elements - 1, previous_content_end);
-
-        let end_varint = previous_content_end + element_len_varint.len();
-        element_len_varint
-            .consensus_encode(&mut &mut self.content[previous_content_end..end_varint])
-            .expect("writers on vec don't error, space granted through previous resize");
-        self.content[end_varint..end_varint + new_element.len()].copy_from_slice(new_element);
     }
 
     /// Pushes a DER-encoded ECDSA signature with a signature hash type as a new element on the
