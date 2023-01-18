@@ -78,6 +78,7 @@ use crate::address::WitnessVersion;
 use crate::taproot::{LeafVersion, TapNodeHash, TapLeafHash};
 use secp256k1::{Secp256k1, Verification, XOnlyPublicKey};
 use crate::schnorr::{TapTweak, TweakedPublicKey, UntweakedPublicKey};
+use crate::address::Address;
 
 /// Bitcoin script slice.
 ///
@@ -518,6 +519,12 @@ impl Script {
         // layout).
         let inner = unsafe { Box::from_raw(rw) };
         ScriptBuf(Vec::from(inner))
+    }
+}
+
+impl From<Address> for Box<Script> {
+    fn from(addr: Address) -> Box<Script> {
+        addr.into()
     }
 }
 
